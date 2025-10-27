@@ -12,8 +12,8 @@ from langchain_core.embeddings import Embeddings
 from langchain_groq import ChatGroq
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import EmbeddingsFilter
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors.embeddings_filter import EmbeddingsFilter
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader, CSVLoader
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_community.vectorstores.utils import filter_complex_metadata
@@ -784,3 +784,4 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
