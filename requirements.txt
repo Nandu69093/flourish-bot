@@ -6,7 +6,8 @@ python-dotenv
 torch
 transformers
 chromadb
-langchain==0.2.14
-langchain-core==0.2.26
-langchain-community==0.2.7
-langchain-groq==0.1.4
+langchain
+langchain-core
+langchain-community
+langchain-groq
+groq
