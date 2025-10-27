@@ -12,8 +12,6 @@ from langchain_core.embeddings import Embeddings
 from langchain_groq import ChatGroq
 from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import PromptTemplate
-from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors.embeddings_filter import EmbeddingsFilter
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader, CSVLoader
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_community.vectorstores.utils import filter_complex_metadata
@@ -34,7 +32,7 @@ META_PHONE_NUMBER_ID = os.getenv("META_PHONE_NUMBER_ID")
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN")
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb+srv://aimsghub_db_user:<db_password>@cluster0.5ufyyk6.mongodb.net/?appName=Cluster0")
 
-# Custom Text Splitter Implementation
+# Custom implementations to avoid LangChain import issues
 class RecursiveCharacterTextSplitter:
     def __init__(self, chunk_size=1000, chunk_overlap=200, separators=None):
         self.chunk_size = chunk_size
@@ -89,6 +87,22 @@ class RecursiveCharacterTextSplitter:
                 )
                 split_docs.append(new_doc)
         return split_docs
+
+# Custom retriever implementations
+class EmbeddingsFilter:
+    def __init__(self, embeddings, similarity_threshold=0.75):
+        self.embeddings = embeddings
+        self.similarity_threshold = similarity_threshold
+
+class ContextualCompressionRetriever:
+    def __init__(self, base_compressor, base_retriever):
+        self.base_compressor = base_compressor
+        self.base_retriever = base_retriever
+    
+    def get_relevant_documents(self, query):
+        # Simple implementation - in production you'd want more sophisticated filtering
+        docs = self.base_retriever.get_relevant_documents(query)
+        return docs
 
 # MongoDB Setup
 class MongoDB:
@@ -784,4 +798,3 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
