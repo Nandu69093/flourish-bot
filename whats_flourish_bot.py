@@ -7,7 +7,7 @@ import os
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain.embeddings.base import Embeddings
 from langchain_groq import ChatGroq
 from langchain_community.vectorstores import Chroma
@@ -694,4 +694,5 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
