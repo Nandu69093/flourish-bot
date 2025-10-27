@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+requests
+pymongo
+python-dotenv
+torch
+transformers
+langchain
+langchain-groq
+langchain-community
+chromadb
