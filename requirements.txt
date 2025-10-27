@@ -5,7 +5,9 @@ pymongo
 python-dotenv
 torch
 transformers
-langchain
+langchain==0.2.14
+langchain-core==0.2.26
+langchain-community==0.2.7
 langchain-groq
-langchain-community
 chromadb
+groq
