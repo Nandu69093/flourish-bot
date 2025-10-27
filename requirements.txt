@@ -3,7 +3,7 @@ uvicorn
 groq
 torch
 transformers
-langchain
+langchain-core
 langchain-groq
 langchain-community
 chromadb
@@ -14,4 +14,3 @@ requests
 pymongo
 pydantic
 python-multipart
-langchain-text-splitters
