@@ -7,17 +7,20 @@ import os
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModel
-from langchain_core.documents import Document
-from langchain_core.embeddings import Embeddings
+# from langchain.schema import Document
+from langchain.embeddings.base import Embeddings
 from langchain_groq import ChatGroq
 from langchain_community.vectorstores import Chroma
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
+from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_classic.retrievers.document_compressors import EmbeddingsFilter
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader, Docx2txtLoader, CSVLoader
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_community.vectorstores.utils import filter_complex_metadata
 from dotenv import load_dotenv
 import requests
-from typing import Dict, List
+from typing import Dict
 import shutil
 from pydantic import BaseModel
 from datetime import datetime, timezone
@@ -31,78 +34,6 @@ META_ACCESS_TOKEN = os.getenv("META_ACCESS_TOKEN")
 META_PHONE_NUMBER_ID = os.getenv("META_PHONE_NUMBER_ID")
 META_VERIFY_TOKEN = os.getenv("META_VERIFY_TOKEN")
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb+srv://aimsghub_db_user:<db_password>@cluster0.5ufyyk6.mongodb.net/?appName=Cluster0")
-
-# Custom implementations to avoid LangChain import issues
-class RecursiveCharacterTextSplitter:
-    def __init__(self, chunk_size=1000, chunk_overlap=200, separators=None):
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
-        self.separators = separators or ["\n\n", "\n", " ", ""]
-    
-    def split_text(self, text: str) -> List[str]:
-        """Split text into chunks"""
-        final_chunks = []
-        separator = self.separators[-1]
-        
-        for s in self.separators:
-            if s == "":
-                separator = s
-                break
-            if s in text:
-                separator = s
-                break
-        
-        splits = text.split(separator) if separator else list(text)
-        
-        current_chunk = ""
-        for split in splits:
-            if len(current_chunk) + len(split) + len(separator) <= self.chunk_size:
-                current_chunk += split + separator
-            else:
-                if current_chunk:
-                    final_chunks.append(current_chunk.strip())
-                
-                # Handle overlap
-                if self.chunk_overlap > 0 and current_chunk:
-                    overlap_start = max(0, len(current_chunk) - self.chunk_overlap)
-                    overlap_text = current_chunk[overlap_start:]
-                    current_chunk = overlap_text + split + separator
-                else:
-                    current_chunk = split + separator
-        
-        if current_chunk:
-            final_chunks.append(current_chunk.strip())
-        
-        return [chunk for chunk in final_chunks if chunk]
-    
-    def split_documents(self, documents: List[Document]) -> List[Document]:
-        """Split documents into chunks"""
-        split_docs = []
-        for doc in documents:
-            chunks = self.split_text(doc.page_content)
-            for chunk in chunks:
-                new_doc = Document(
-                    page_content=chunk,
-                    metadata=doc.metadata.copy()
-                )
-                split_docs.append(new_doc)
-        return split_docs
-
-# Custom retriever implementations
-class EmbeddingsFilter:
-    def __init__(self, embeddings, similarity_threshold=0.75):
-        self.embeddings = embeddings
-        self.similarity_threshold = similarity_threshold
-
-class ContextualCompressionRetriever:
-    def __init__(self, base_compressor, base_retriever):
-        self.base_compressor = base_compressor
-        self.base_retriever = base_retriever
-    
-    def get_relevant_documents(self, query):
-        # Simple implementation - in production you'd want more sophisticated filtering
-        docs = self.base_retriever.get_relevant_documents(query)
-        return docs
 
 # MongoDB Setup
 class MongoDB:
@@ -385,7 +316,8 @@ def chatbot(user_input, retriever, chat_history=None):
         fallback_response = "I'm sorry, I couldn't find relevant information to answer your question at the moment.Please contact at 9568504370 number for further assistance."
 
         prompt_template = PromptTemplate(
-            template="""You are a professional and friendly AI assistant(your name is Flourish Buddy) for Flourish Digital Pvt Ltd. 
+            template="""
+You are a professional and friendly AI assistant(your name is Flourish Buddy) for Flourish Digital Pvt Ltd. 
 Answer the user query clearly, concisely, and accurately using the knowledge base content provided.
 
 USER QUERY: {query}
@@ -403,7 +335,8 @@ INSTRUCTIONS:
 - Respond politely and in a friendly tone, even for short acknowledgments like "ok", "alright", or "good" with emojis.
 - Use appropriate emojis according to the whatsapp query context by the user.
 
-RESPONSE:""",
+RESPONSE:
+""",
             input_variables=['query', 'detected_intent', 'retrieved_doc', 'fallback_response']
         )
 
@@ -494,14 +427,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 from pathlib import Path
 
 DEFAULT_KB_PATH = Path("Flour.pdf")  
 
 @app.on_event("startup")
 async def load_default_knowledge_base():
-    global vector_store, retriever, current_kb_path
+    global vector_store, retriever
     print(f"Loading default knowledge base from: {DEFAULT_KB_PATH}")
     
     # Test MongoDB connection
@@ -509,25 +441,11 @@ async def load_default_knowledge_base():
         print("MongoDB connection failed!")
 
     if DEFAULT_KB_PATH.exists():
-        try:
-            vector_store = load_and_process_documents(str(DEFAULT_KB_PATH), embedding_model)
-            retriever = advanced_retrievers(vector_store, embedding_model)
-            current_kb_path = str(DEFAULT_KB_PATH)
-            print("Knowledge base loaded successfully!")
-        except Exception as e:
-            print(f"Error loading knowledge base: {e}")
-            # Try to load existing vector store as fallback
-            vector_store = load_existing_vector_store(embedding_model)
-            if vector_store:
-                retriever = advanced_retrievers(vector_store, embedding_model)
-                print("Loaded existing vector store as fallback")
+        vector_store = load_and_process_documents(str(DEFAULT_KB_PATH), embedding_model)
+        retriever = advanced_retrievers(vector_store, embedding_model)
+        print("Knowledge base loaded successfully!")
     else:
         print(f"Knowledge base file not found: {DEFAULT_KB_PATH}")
-        # Try to load existing vector store
-        vector_store = load_existing_vector_store(embedding_model)
-        if vector_store:
-            retriever = advanced_retrievers(vector_store, embedding_model)
-            print("Loaded existing vector store")
 
 @app.get("/")
 async def root():
@@ -707,27 +625,6 @@ async def get_knowledge_base_status():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/update-knowledge-base")
-async def update_knowledge_base(kb_path: KnowledgeBasePath):
-    """Update the knowledge base with a new file"""
-    global vector_store, retriever, current_kb_path
-    
-    try:
-        if not os.path.exists(kb_path.file_path):
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        vector_store = load_and_process_documents(kb_path.file_path, embedding_model)
-        retriever = advanced_retrievers(vector_store, embedding_model)
-        current_kb_path = kb_path.file_path
-        
-        return {
-            "status": "success",
-            "message": "Knowledge base updated successfully",
-            "file_path": kb_path.file_path
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error updating knowledge base: {str(e)}")
 
 @app.delete("/clear-knowledge-base")
 async def clear_knowledge_base():
